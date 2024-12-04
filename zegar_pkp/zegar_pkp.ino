@@ -11,9 +11,12 @@
 
 #define TICK 500L
 #define CLOCK_DEBUG 0
+#define QUEUE_SIZE 32
 
 enum class Event { WAIT = 0, ALARM = 1, CHANGE_TIME = 2, SYNC = 3 };
-static Event global_event = Event::WAIT;
+static volatile Event _events[QUEUE_SIZE] = { Event::WAIT };
+static volatile byte _read_counter = 0;
+static volatile byte _write_counter = 0;
 
 void setup() {
   pinMode(PIN_ALARM, INPUT_PULLUP);
@@ -29,10 +32,10 @@ void setup() {
   if (Rtc.get_status() &
       (1 << RTC_STATUS_FLAG_OSF)) { // When RTC lost the power.
     Rtc.reset();
-    global_event = Event::WAIT;
+    push_event(Event::WAIT);
   } else { // When the microcontroller was turned off but RTC was working.
     Rtc.clear_alarm2();
-    global_event = Event::SYNC;
+    push_event(Event::SYNC);
   }
 
 #if CLOCK_DEBUG
@@ -90,11 +93,18 @@ inline void set_alarm1_in_rtc(const Time &t) {
   Rtc.set_alarm1_hours(t.hours());
 }
 
-inline Event manage_event(Event event) {
+inline void motor_tick() {
+  #if CLOCK_DEBUG
+    Serial.println("TICK");
+  #endif
+  Motor.tick();
+}
+
+inline void manage_event(Event event) {
   switch (event) {
   case Event::CHANGE_TIME: {
     while (digitalRead(PIN_BTN) == LOW) {
-      Motor.tick();
+      motor_tick();
 
       Time new_time = get_time_from_rtc();
       new_time.increment_minute();
@@ -106,7 +116,6 @@ inline Event manage_event(Event event) {
     }
     Motor.turn_off();
     Rtc.clear_alarm2();
-    return Event::WAIT;
   } break;
   case Event::ALARM:
   case Event::SYNC: {
@@ -123,47 +132,49 @@ inline Event manage_event(Event event) {
       lack_minutes = current_total_minutes + 12 * 60 - last_set_total_minutes;
     }
 
+    #if CLOCK_DEBUG
+      Serial.print("Alarm1 minutes:  "); Serial.println(last_set_total_minutes);
+      Serial.print("Current minutes: "); Serial.println(current_total_minutes);
+      Serial.print("Lack minutes:    "); Serial.println(lack_minutes);
+    #endif
+
     for (int i = 0; i < lack_minutes; i++) {
-      if (digitalRead(PIN_BTN_TURN_ON) == HIGH) {
-        Motor.tick();
-      }
-      last_set_time.increment_minute();
-      set_alarm1_in_rtc(last_set_time);
+      motor_tick();
       delay_tick();
     }
     Motor.turn_off();
+
+    set_alarm1_in_rtc(current_time);
     Rtc.clear_alarm2();
-    return Event::WAIT;
   } break;
-  default: {
-    return Event::WAIT;
-  } break;
+  default: break;
   }
 }
 
 void loop() {
+  noInterrupts();
+  Event event = _events[_read_counter];
+  interrupts();
 #if CLOCK_DEBUG
   static unsigned int iii = 0;
   static unsigned char iiii = 0;
-  static Event prev_event = global_event;
-  if (global_event != prev_event || (iii++ == 0 && (iiii++ & 0b111) == 0)) {
-    prev_event = global_event;
+  if (iii++ == 0 && (iiii++ & 0b111) == 0) {
     Serial.print("event: ");
-    switch (global_event) {
+    switch (event) {
     case Event::WAIT:
-      Serial.print("WAIT       ");
+      Serial.print("WAIT  ");
       break;
     case Event::ALARM:
-      Serial.print("ALARM      ");
+      Serial.print("ALARM ");
       break;
     case Event::CHANGE_TIME:
-      Serial.print("CHANGE_TIME");
+      Serial.print("CHANGE");
       break;
     case Event::SYNC:
-      Serial.print("SYNC       ");
+      Serial.print("SYNC  ");
       break;
     default:
-      Serial.print("???        ");
+      Serial.print("???   ");
       break;
     }
     Serial.print(" time: ");
@@ -175,22 +186,43 @@ void loop() {
     print_byte(Rtc.get_status());
     Serial.print(" control: ");
     print_byte(Rtc.get_control());
+    Serial.print(" int: ");
+    Serial.print(digitalRead(PIN_ALARM));
     Serial.print('\n');
     delayMicroseconds(10000L);
   }
-#else
-  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-#endif
-  global_event = manage_event(global_event);
-}
-
-inline void int_change_event(Event event) {
-  if (global_event >= event) {
+  if (event == Event::WAIT) {
     return;
   }
-  global_event = event;
+#else
+  if (event == Event::WAIT) {
+    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+    return;
+  }
+#endif
+  manage_event(event);
+  #if CLOCK_DEBUG
+    Serial.print("Read Counter: "); Serial.println(_read_counter);
+  #endif
+  noInterrupts();
+  _events[_read_counter] = Event::WAIT;
+  _read_counter = (_read_counter + 1) % QUEUE_SIZE;
+  interrupts();
 }
 
-void alarm() { int_change_event(Event::ALARM); }
+inline volatile void push_event(Event event) {
+#if CLOCK_DEBUG
+  Serial.print("Write Counter: "); Serial.println(_write_counter);
+#endif
+  _events[_write_counter] = event;
+  _write_counter = (_write_counter + 1) % QUEUE_SIZE;
+}
 
-void change_time() { int_change_event(Event::CHANGE_TIME); }
+void volatile alarm() {
+#if CLOCK_DEBUG
+  Serial.println("ALARM!");
+#endif
+  push_event(Event::ALARM); 
+}
+
+void volatile change_time() { push_event(Event::CHANGE_TIME); }

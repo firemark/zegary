@@ -22,7 +22,7 @@ public:
       _write(ALARM1_MINUTES_ADDR, _minutes_encode(0));
       _write(ALARM1_HOURS_ADDR, _hours_encode(12));
     }
-    { // set alarm2 to 12:01PM + ALARM every second
+    { // set alarm2 to 12:01PM + ALARM every minute
       _write(ALARM2_MINUTES_ADDR, ALARM_FLAG | _minutes_encode(0));
       _write(ALARM2_HOURS_ADDR, ALARM_FLAG | _hours_encode(12));
       _write(ALARM2_DAYS_ADDR, ALARM_FLAG | 1);
@@ -61,7 +61,7 @@ public:
   }
 
   void set_hours(byte hours) {
-    _write(TIME_HOURS_ADDR, _seconds_encode(hours));
+    _write(TIME_HOURS_ADDR, _hours_encode(hours));
   }
 
   void set_alarm1_seconds(byte seconds) {
@@ -73,7 +73,7 @@ public:
   }
 
   void set_alarm1_hours(byte hours) {
-    _write(ALARM1_HOURS_ADDR, _seconds_encode(hours));
+    _write(ALARM1_HOURS_ADDR, _hours_encode(hours));
   }
 
   void clear_alarm1() { _write(STATUS_ADDR, get_status() & ~0b01); }
