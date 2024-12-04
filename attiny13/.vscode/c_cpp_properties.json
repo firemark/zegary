@@ -1,0 +1,26 @@
+{
+    "configurations": [
+        {
+            "name": "AVR",
+            "intelliSenseMode": "${default}",
+            "compilerPath": "/usr/bin/avr-gcc",
+            "cStandard": "${default}",
+            "cppStandard": "${default}",
+            "includePath": ["${workspaceRoot}/include", "/include/simavr", "/include/simavr/avr"],
+            "defines": ["__AVR_ATtiny13__"],
+            "compilerArgs": [
+                "-g",
+                "-Os",
+                "-Wall",
+                "-Wextra",
+                "-fpermissive",
+                "-fno-exceptions",
+                "-fno-threadsafe-statics",
+                "-ffunction-sections",
+                "-fdata-sections",
+                "-pipe"
+            ]
+        }
+    ],
+    "version": 4
+}

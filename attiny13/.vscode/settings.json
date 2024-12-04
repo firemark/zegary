@@ -1,0 +1,26 @@
+{
+    "AVR.reporter.arguments": [
+        "-C"
+    ],
+    "AVR.source.compiler": "/usr/bin/avr-gcc",
+    "AVR.programmer.tool": "/usr/bin/avrdude",
+    "AVR.source.libraries": [],
+    "files.associations": {
+        "io.h": "c",
+        "sfr_defs.h": "c",
+        "motor.h": "c",
+        "i2c.h": "c",
+        "delay.h": "c",
+        "delay_basic.h": "c",
+        "sim_avr.h": "c",
+        "rtc_internal.h": "c"
+    },
+    "makefile.configureOnOpen": true,
+    "clangd.arguments": [
+        "--query-driver=/usr/bin/avr-gcc"
+    ],
+    "clangd.enable": false,
+    "C_Cpp.default.systemIncludePath": [
+        "/usr/lib/avr/include"
+    ]
+}
